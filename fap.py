@@ -2,6 +2,51 @@ from fap_back import *
 
 inited = False
 
+class DecodeError(Exception): pass
+class NMEAError(DecodeError): pass
+class GPRMCError(NMEAError): pass
+class GPRMCFieldNumberError(GPRMCError): pass
+class ChecksumError(NMEAError): pass
+
+import operator
+def checksum(sentence):
+	nmeadata,cksum = sentence.split('*', 1)
+	calc_cksum = reduce(operator.xor, (ord(s) for s in nmeadata), 0)
+	res = hex(calc_cksum)[2:]
+	return cksum == res, cksum, res.upper()
+
+def prep_GPRMC(packet):
+	"""Libfap GPRMC is overly strict, this passes exceptions as warnings, but still attempts packet parsing for GPRMC. """
+	error = None
+	if r':$GPRMC' in packet:
+		l,r = packet.split(':$', 1)
+		r = r.replace(',,', ', ,').replace(',,', ', ,')
+		r_chunks = r.split(',')
+		original_ck = checksum(r)
+		if not original_ck[0]:
+			error = ChecksumError('The checksum was %s; it should be %s. ' % original_ck[1:])
+		if r_chunks[2].upper() == 'V':
+			r_chunks[2] = 'A'
+		try:
+			r_chunks[12] = r_chunks[12][:-2] + checksum(','.join(r_chunks))[2]
+		except:
+			error = GPRMCError('Invaild GPRMC string')
+		packet = l + ':$' + ','.join(r_chunks)
+	return packet, error
+
+
+def ErrorWithPtr(e):
+	err_type = DecodeError
+	if e is None:
+		o = ''
+	else:
+		o = sa_decode_error(e)
+		if o == 'Invalid checksum in NMEA sentence':
+			err_type = ChecksumError
+		if o == 'Less than ten fields in GPRMC sentence':
+			err_type = GPRMCFieldError
+	return err_type(o)
+	
 what_to_keep = {
 	'altitude': double_p_value,
 	'latitude': double_p_value,
@@ -15,29 +60,37 @@ what_to_keep = {
 	'path': None,
 	'path_len': None,
 }
-
-class BadPacket(ValueError): pass
-
 class Packet(object):
-	def __init__(self,packet):
+	def __init__(self,packet, raise_errors = True):
 		init()
+		self.error = None
 		fp = None
 		self.should_release = False
 		if isinstance(packet, fap_packet_t):
 			fp = packet
 		if isinstance(packet, str):
 			self.should_release = True
+			packet, err = prep_GPRMC(packet)
+			if err:
+				self.error = err
+			#print packet
 			fp = fap_parseaprs(packet, len(packet), 0)
+				
+		if fp.error_code is not None:
+			self.error = ErrorWithPtr(fp.error_code)
 		
-		if fp.src_callsign is None:
-			raise BadPacket, packet
 		for name, func  in what_to_keep.items():
 			val = getattr(fp, name)
-			if func is not None:
+			if val is not None and func is not None:
 				val = func(val)
 			setattr(self, name, val)
 		
+		if raise_errors and self.error:
+			self.error.packet = self
+			raise(self.error)
+		
 		fap_free(fp)
+		
 
 
 			
