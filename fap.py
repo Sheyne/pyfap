@@ -15,6 +15,9 @@ what_to_keep = {
 	'path': None,
 	'path_len': None,
 }
+
+class BadPacket(ValueError): pass
+
 class Packet(object):
 	def __init__(self,packet):
 		init()
@@ -26,6 +29,8 @@ class Packet(object):
 			self.should_release = True
 			fp = fap_parseaprs(packet, len(packet), 0)
 		
+		if fp.src_callsign is None:
+			raise BadPacket, packet
 		for name, func  in what_to_keep.items():
 			val = getattr(fp, name)
 			if func is not None:
