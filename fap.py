@@ -8,6 +8,7 @@ what_to_keep = {
 	'longitude': double_p_value,
 	'src_callsign': None,
 	'dst_callsign': None,
+	'timestamp': lambda x: int(long_time(x)),
 	'body': None,
 	'header': None,
 	'type': None,
