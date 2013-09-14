@@ -15,4 +15,4 @@ If python is installed without the developer tools, these will also need to be i
 	# aptitude install python-dev
 
 # Issue
-generated fap_back.py is not copied
+Lots of warnings are printed and this has only been tested on Debian and OS X. It *should* work on other systems. 
