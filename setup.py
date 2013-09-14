@@ -10,6 +10,7 @@ from distutils.core import setup, Extension
 fap_module = Extension('_fap_back',
 					   sources=['fap_back.i'],
 					   swig_opts=['-modern','-I/usr/local/include'],
+					   library_dirs=['/usr/local/lib'],
 					   libraries=['fap'],
 					   )
 
